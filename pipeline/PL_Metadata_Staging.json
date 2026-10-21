@@ -34,6 +34,7 @@
 					],
 					"storeSettings": {
 						"type": "AzureBlobFSReadSettings",
+						"recursive": true,
 						"enablePartitionDiscovery": false
 					},
 					"formatSettings": {
@@ -117,27 +118,25 @@
 								],
 								"ifTrueActivities": [
 									{
-										"name": "Data_Patient",
-										"type": "ExecuteDataFlow",
+										"name": "Dataflow_cleaning_execpipeline",
+										"type": "ExecutePipeline",
 										"dependsOn": [],
 										"policy": {
-											"timeout": "0.12:00:00",
-											"retry": 0,
-											"retryIntervalInSeconds": 30,
-											"secureOutput": false,
 											"secureInput": false
 										},
 										"userProperties": [],
 										"typeProperties": {
-											"dataflow": {
-												"referenceName": "dataflow_source",
-												"type": "DataFlowReference"
+											"pipeline": {
+												"referenceName": "Swithch_dataflowcleaning",
+												"type": "PipelineReference"
 											},
-											"integrationRuntime": {
-												"referenceName": "IR-Healthcare-Public",
-												"type": "IntegrationRuntimeReference"
-											},
-											"traceLevel": "Fine"
+											"waitOnCompletion": true,
+											"parameters": {
+												"pFilename": {
+													"value": "@item().name",
+													"type": "Expression"
+												}
+											}
 										}
 									}
 								]
@@ -176,6 +175,7 @@
 								],
 								"storeSettings": {
 									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
 									"enablePartitionDiscovery": false
 								},
 								"formatSettings": {
