@@ -1,0 +1,98 @@
+{
+	"name": "dataflow_hospital",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "Ds_landing_folder",
+						"type": "DatasetReference"
+					},
+					"name": "SRCHospital"
+				}
+			],
+			"sinks": [
+				{
+					"linkedService": {
+						"referenceName": "AzureDataLakeStorage_Ls",
+						"type": "LinkedServiceReference"
+					},
+					"name": "SNKHospitalAccepted"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureDataLakeStorage_Ls",
+						"type": "LinkedServiceReference"
+					},
+					"name": "SNKHospitalRejected"
+				}
+			],
+			"transformations": [
+				{
+					"name": "DRVHospitalClean"
+				},
+				{
+					"name": "WINHospitalDuplicate"
+				},
+				{
+					"name": "DRVHospitalRules"
+				},
+				{
+					"name": "SPLHospitalValid"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          hospital_id as string,",
+				"          hospital_name as string,",
+				"          city as string,",
+				"          bed_count as short",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     limit: 100,",
+				"     ignoreNoFilesFound: false,",
+				"     wildcardPaths:['landing/hospital_raw.csv']) ~> SRCHospital",
+				"SRCHospital derive(hospital_id = trim(hospital_id),",
+				"          hospital_name = trim(hospital_name),",
+				"          city = trim(city),",
+				"          bed_count_clean = toInteger(trim(toString(bed_count)))) ~> DRVHospitalClean",
+				"DRVHospitalClean window(over(hospital_id),",
+				"     asc(hospital_id, true),",
+				"     duplicate_rank = rowNumber()) ~> WINHospitalDuplicate",
+				"WINHospitalDuplicate derive(rejection_reason = iif(     isNull(hospital_id) || length(hospital_id) == 0,     'MISSING_HOSPITAL_ID',    \r",
+				" iif(         duplicate_rank > 1,         'DUPLICATE_HOSPITAL_ID',        \r",
+				"  iif(             isNull(bed_count_clean) || bed_count_clean <= 0,             'INVALID_BED_COUNT',             iif(                 isNull(hospital_name) || length(hospital_name) == 0,                 'MISSING_HOSPITAL_NAME',                 ''             )         )     ) )) ~> DRVHospitalRules",
+				"DRVHospitalRules split(rejection_reason == '',",
+				"     disjoint: false) ~> SPLHospitalValid@(Accepted, Rejected)",
+				"SPLHospitalValid@Accepted sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     fileSystem: 'healthcare-stagging',",
+				"     folderPath: 'staging/accepted/hospital',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     mapColumn(",
+				"          hospital_id,",
+				"          hospital_name,",
+				"          city,",
+				"          bed = bed_count",
+				"     )) ~> SNKHospitalAccepted",
+				"SPLHospitalValid@Rejected sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     fileSystem: 'healthcare-stagging',",
+				"     folderPath: 'staging/rejected/hospital',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SNKHospitalRejected"
+			]
+		}
+	}
+}
