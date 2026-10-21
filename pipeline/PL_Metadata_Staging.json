@@ -88,11 +88,18 @@
 						{
 							"name": "IF_Validate_File",
 							"type": "IfCondition",
-							"dependsOn": [],
+							"dependsOn": [
+								{
+									"activity": "Get Metadata-filecheck",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
 							"userProperties": [],
 							"typeProperties": {
 								"expression": {
-									"value": "true",
+									"value": "@and(\n  activity('Get Metadata-filecheck').output.exists,\n  greater(activity('Get Metadata-filecheck').output.size,0)\n)",
 									"type": "Expression"
 								},
 								"ifFalseActivities": [
@@ -226,6 +233,42 @@
 										}
 									}
 								]
+							}
+						},
+						{
+							"name": "Get Metadata-filecheck",
+							"type": "GetMetadata",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "DS_Landing_CSV",
+									"type": "DatasetReference",
+									"parameters": {
+										"pFolder": "landing"
+									}
+								},
+								"fieldList": [
+									"exists",
+									{
+										"value": "Size",
+										"type": "Expression"
+									}
+								],
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "DelimitedTextReadSettings"
+								}
 							}
 						}
 					]
