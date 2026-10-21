@@ -1,0 +1,15 @@
+{
+	"name": "adf-healthcare-project1-healthcare",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "canadacentral",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "29c91259-d441-4b53-be54-12b252e6b563",
+		"tenantId": "ff015244-54e4-433d-94d8-e14ac7b1ae88"
+	}
+}

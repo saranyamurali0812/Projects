@@ -1,0 +1,18 @@
+{
+	"name": "Binary_ds_adls_copy",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_adlsgen2_healthcare",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "Binary",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileSystem": "healthcare-sourcefiles"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

@@ -1,0 +1,81 @@
+{
+	"name": "Healthcare_vm_pipeline",
+	"properties": {
+		"activities": [
+			{
+				"name": "Source-copy",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "BinarySource",
+						"storeSettings": {
+							"type": "FileServerReadSettings",
+							"recursive": true,
+							"wildcardFolderPath": "C:\\Project1_sourcefile",
+							"wildcardFileName": "*.csv",
+							"deleteFilesAfterCompletion": true
+						},
+						"formatSettings": {
+							"type": "BinaryReadSettings"
+						}
+					},
+					"sink": {
+						"type": "BinarySink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings",
+							"copyBehavior": "PreserveHierarchy"
+						}
+					},
+					"enableStaging": false
+				},
+				"inputs": [
+					{
+						"referenceName": "Binary_ds_copy",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "Binary_ds_adls_copy",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "pipeline_staging-cleanload",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Source-copy",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "PL_Metadata_Staging",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2026-10-20T22:44:09Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

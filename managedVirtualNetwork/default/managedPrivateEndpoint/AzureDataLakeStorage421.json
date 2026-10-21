@@ -1,0 +1,7 @@
+{
+	"name": "AzureDataLakeStorage421",
+	"properties": {
+		"privateLinkResourceId": "/subscriptions/829601d5-b8bc-492f-bd34-16a67291db06/resourceGroups/rg-healthcare-project1/providers/Microsoft.Storage/storageAccounts/sahealthcarep1",
+		"groupId": "dfs"
+	}
+}
