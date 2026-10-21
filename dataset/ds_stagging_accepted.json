@@ -16,7 +16,7 @@
 			"location": {
 				"type": "AzureBlobFSLocation",
 				"folderPath": {
-					"value": "@concat('staging/accepted/',dataset().pFoldername)",
+					"value": "staging/accepted/patient",
 					"type": "Expression"
 				},
 				"fileSystem": "healthcare-stagging"
