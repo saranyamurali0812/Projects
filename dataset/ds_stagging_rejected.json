@@ -10,7 +10,7 @@
 		"typeProperties": {
 			"location": {
 				"type": "AzureBlobFSLocation",
-				"folderPath": "staging/rejected",
+				"folderPath": "staging/rejected/patient",
 				"fileSystem": "healthcare-stagging"
 			},
 			"compressionCodec": "snappy"
