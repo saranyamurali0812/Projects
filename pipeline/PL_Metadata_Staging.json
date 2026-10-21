@@ -27,7 +27,6 @@
 							"value": "childItems",
 							"type": "Expression"
 						},
-						"exists",
 						{
 							"value": "Size",
 							"type": "Expression"
@@ -35,7 +34,6 @@
 					],
 					"storeSettings": {
 						"type": "AzureBlobFSReadSettings",
-						"recursive": true,
 						"enablePartitionDiscovery": false
 					},
 					"formatSettings": {
@@ -119,8 +117,8 @@
 								],
 								"ifTrueActivities": [
 									{
-										"name": "CP-landing-staging",
-										"type": "Copy",
+										"name": "Data_Patient",
+										"type": "ExecuteDataFlow",
 										"dependsOn": [],
 										"policy": {
 											"timeout": "0.12:00:00",
@@ -131,105 +129,15 @@
 										},
 										"userProperties": [],
 										"typeProperties": {
-											"source": {
-												"type": "DelimitedTextSource",
-												"storeSettings": {
-													"type": "AzureBlobFSReadSettings",
-													"recursive": true,
-													"enablePartitionDiscovery": false
-												},
-												"formatSettings": {
-													"type": "DelimitedTextReadSettings"
-												}
+											"dataflow": {
+												"referenceName": "dataflow_source",
+												"type": "DataFlowReference"
 											},
-											"sink": {
-												"type": "ParquetSink",
-												"storeSettings": {
-													"type": "AzureBlobFSWriteSettings",
-													"copyBehavior": "FlattenHierarchy"
-												},
-												"formatSettings": {
-													"type": "ParquetWriteSettings"
-												}
+											"integrationRuntime": {
+												"referenceName": "IR-Healthcare-Public",
+												"type": "IntegrationRuntimeReference"
 											},
-											"enableStaging": false,
-											"translator": {
-												"type": "TabularTranslator",
-												"typeConversion": true,
-												"typeConversionSettings": {
-													"allowDataTruncation": true,
-													"treatBooleanAsNumber": false
-												}
-											}
-										},
-										"inputs": [
-											{
-												"referenceName": "DS_ADLS_Landing",
-												"type": "DatasetReference",
-												"parameters": {
-													"pFoldername": "landing",
-													"pfilename": {
-														"value": "@item().name",
-														"type": "Expression"
-													}
-												}
-											}
-										],
-										"outputs": [
-											{
-												"referenceName": "DS_Staging_Parquet",
-												"type": "DatasetReference",
-												"parameters": {
-													"pFolderName": {
-														"value": "@concat(\n  'staging/accepted/',\n  replace(item().name,'_raw.csv','')\n)",
-														"type": "Expression"
-													}
-												}
-											}
-										]
-									},
-									{
-										"name": "Loq-count",
-										"type": "AppendVariable",
-										"dependsOn": [
-											{
-												"activity": "CP-landing-staging",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"userProperties": [],
-										"typeProperties": {
-											"variableName": "CopyLog",
-											"value": {
-												"value": "@json(concat(\n  '{\"Activity\":\"CP-landing-staging\",',\n  '\"RowsRead\":',string(activity('CP-landing-staging').output.rowsRead),',',\n  '\"RowsCopied\":',string(activity('CP-landing-staging').output.rowsCopied),\n  '}'\n))",
-												"type": "Expression"
-											}
-										}
-									},
-									{
-										"name": "Copylog-count",
-										"type": "SetVariable",
-										"dependsOn": [
-											{
-												"activity": "Loq-count",
-												"dependencyConditions": [
-													"Succeeded"
-												]
-											}
-										],
-										"policy": {
-											"secureOutput": false,
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"variableName": "Logdata",
-											"value": {
-												"value": "@string(variables('CopyLog'))",
-												"type": "Expression"
-											}
+											"traceLevel": "Fine"
 										}
 									}
 								]

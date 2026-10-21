@@ -5,18 +5,13 @@
 			"referenceName": "AzureDataLakeStorage_Ls",
 			"type": "LinkedServiceReference"
 		},
-		"parameters": {
-			"pFileName": {
-				"type": "string"
-			}
-		},
 		"annotations": [],
 		"type": "DelimitedText",
 		"typeProperties": {
 			"location": {
 				"type": "AzureBlobFSLocation",
 				"fileName": {
-					"value": "$pFileName",
+					"value": "patient_raw.csv",
 					"type": "Expression"
 				},
 				"folderPath": "landing",

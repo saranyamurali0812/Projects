@@ -1,0 +1,97 @@
+{
+	"name": "dataflow_source",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "Ds_landing_folder",
+						"type": "DatasetReference"
+					},
+					"name": "SRCPatient"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "ds_stagging_accepted",
+						"type": "DatasetReference"
+					},
+					"name": "SNKPatientAccepted"
+				},
+				{
+					"dataset": {
+						"referenceName": "ds_stagging_rejected",
+						"type": "DatasetReference"
+					},
+					"name": "SNKPatientRejected"
+				}
+			],
+			"transformations": [
+				{
+					"name": "DRVPatientClean"
+				},
+				{
+					"name": "WINPatientDuplicate"
+				},
+				{
+					"name": "DRVPatientRules"
+				},
+				{
+					"name": "SPLPatientValid"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          patient_id as string,",
+				"          first_name as string,",
+				"          last_name as string,",
+				"          gender as string,",
+				"          dob as date,",
+				"          city as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     limit: 100,",
+				"     ignoreNoFilesFound: false) ~> SRCPatient",
+				"SRCPatient derive(patient_id = trim(patient_id),",
+				"          first_name = trim(first_name),",
+				"          last_name = trim(last_name),",
+				"          gender = upper(trim(gender)),",
+				"          city = trim(city),",
+				"          dob_clean = toDate(trim(toString(dob)), 'yyyy-MM-dd')) ~> DRVPatientClean",
+				"DRVPatientClean window(over(patient_id),",
+				"     asc(patient_id, true),",
+				"     duplicate_rank = rowNumber()) ~> WINPatientDuplicate",
+				"WINPatientDuplicate derive(rejection_reason = iif(     isNull(patient_id) || length(patient_id) == 0,     'MISSING_PATIENT_ID',     iif(         duplicate_rank > 1,         'DUPLICATE_PATIENT_ID',         iif(             isNull(dob_clean),             'INVALID_DOB',             iif(                 dob_clean > currentDate(),                 'FUTURE_DOB',                 iif(                     !isNull(gender) &&                     length(gender) > 0 &&                     gender != 'M' &&                     gender != 'F',                     'INVALID_GENDER',                     ''                 )             )         )     ) )) ~> DRVPatientRules",
+				"DRVPatientRules split(rejection_reason == '',",
+				"     disjoint: false) ~> SPLPatientValid@(Accepted, Rejected)",
+				"SPLPatientValid@Accepted sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     mapColumn(",
+				"          patient_id,",
+				"          first_name,",
+				"          last_name,",
+				"          gender,",
+				"          dob = dob_clean,",
+				"          city",
+				"     )) ~> SNKPatientAccepted",
+				"SPLPatientValid@Rejected sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> SNKPatientRejected"
+			]
+		}
+	}
+}
