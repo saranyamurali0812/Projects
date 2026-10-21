@@ -18,80 +18,98 @@
 						"referenceName": "AzureDataLakeStorage_Ls",
 						"type": "LinkedServiceReference"
 					},
-					"name": "SNKHospitalAccepted"
+					"name": "SNKVisitAccepted"
 				},
 				{
 					"linkedService": {
 						"referenceName": "AzureDataLakeStorage_Ls",
 						"type": "LinkedServiceReference"
 					},
-					"name": "SNKHospitalRejected"
+					"name": "SNKVisitRejected"
 				}
 			],
 			"transformations": [
 				{
-					"name": "DRVHospitalClean"
+					"name": "DRVVisitClean"
 				},
 				{
-					"name": "WINHospitalDuplicate"
+					"name": "WINVisitDuplicate"
 				},
 				{
-					"name": "DRVHospitalRules"
+					"name": "DRVVisitsRules"
 				},
 				{
-					"name": "SPLHospitalValid"
+					"name": "SPLVisitValid"
 				}
 			],
 			"scriptLines": [
 				"source(output(",
+				"          visit_id as string,",
+				"          patient_id as string,",
 				"          hospital_id as string,",
-				"          hospital_name as string,",
-				"          city as string,",
-				"          bed_count as short",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          diagnosis_code as string,",
+				"          cost as short",
 				"     ),",
 				"     allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     limit: 100,",
 				"     ignoreNoFilesFound: false,",
 				"     wildcardPaths:['landing/visit_raw.csv']) ~> SRCVisits",
-				"SRCVisits derive(hospital_id = trim(hospital_id),",
-				"          hospital_name = trim(hospital_name),",
-				"          city = trim(city),",
-				"          bed_count_clean = toInteger(trim(toString(bed_count)))) ~> DRVHospitalClean",
-				"DRVHospitalClean window(over(hospital_id),",
-				"     asc(hospital_id, true),",
-				"     duplicate_rank = rowNumber()) ~> WINHospitalDuplicate",
-				"WINHospitalDuplicate derive(rejection_reason = iif(     isNull(hospital_id) || length(hospital_id) == 0,     'MISSING_HOSPITAL_ID',    \r",
-				" iif(         duplicate_rank > 1,         'DUPLICATE_HOSPITAL_ID',        \r",
-				"  iif(             isNull(bed_count_clean) || bed_count_clean <= 0,             'INVALID_BED_COUNT',             iif(                 isNull(hospital_name) || length(hospital_name) == 0,                 'MISSING_HOSPITAL_NAME',                 ''             )         )     ) )) ~> DRVHospitalRules",
-				"DRVHospitalRules split(rejection_reason == '',",
-				"     disjoint: false) ~> SPLHospitalValid@(Accepted, Rejected)",
-				"SPLHospitalValid@Accepted sink(allowSchemaDrift: true,",
+				"SRCVisits derive(visit_id = trim(visit_id),",
+				"          patient_id = trim(patient_id),",
+				"          hospital_id = trim(hospital_id),",
+				"          admission_date = upper(trim(diagnosis_code)),",
+				"          discharge_date = toDate(trim(toString(admission_date)), 'yyyy-MM-dd'),",
+				"          diagnosis_code = toDate(trim(toString(discharge_date)), 'yyyy-MM-dd'),",
+				"          cost_clean = toDecimal(trim(toString(cost)), 18, 2)) ~> DRVVisitClean",
+				"DRVVisitClean window(over(visit_id),",
+				"     asc(patient_id, true),",
+				"     duplicate_rank = rowNumber()) ~> WINVisitDuplicate",
+				"WINVisitDuplicate derive(rejection_reason = iif(     isNull(visit_id) || length(trim(toString(visit_id))) == 0,     'Missing visit_id',     iif(         isNull(patient_id) || length(trim(toString(patient_id))) == 0,         'Missing patient_id',         iif(             isNull(hospital_id) || length(trim(toString(hospital_id))) == 0,             'Missing hospital_id',             iif(                 isNull(admission_date),                 'Missing admission_date',                 iif(                     isNull(discharge_date),                     'Missing discharge_date',                     iif(                         toDate(toString(discharge_date), 'yyyy-MM-dd') <                         toDate(toString(admission_date), 'yyyy-MM-dd'),                         'Discharge date before admission date',                         iif(                             isNull(cost_clean),                             'Invalid or missing cost',                             iif(                                 cost_clean < 0,                                 'Negative cost',                                 'Accepted'                             )                         )                     )                 )             )         )     ) )) ~> DRVVisitsRules",
+				"DRVVisitsRules split(rejection_reason == '',",
+				"     disjoint: false) ~> SPLVisitValid@(Accepted, Rejected)",
+				"SPLVisitValid@Accepted sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     format: 'parquet',",
 				"     fileSystem: 'healthcare-stagging',",
-				"     folderPath: 'staging/accepted/hospital',",
+				"     folderPath: 'staging/accepted/visits',",
 				"     umask: 0022,",
 				"     preCommands: [],",
 				"     postCommands: [],",
 				"     skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true,",
 				"     mapColumn(",
+				"          visit_id,",
+				"          patient_id,",
 				"          hospital_id,",
-				"          hospital_name,",
-				"          city,",
-				"          bed = bed_count",
-				"     )) ~> SNKHospitalAccepted",
-				"SPLHospitalValid@Rejected sink(allowSchemaDrift: true,",
+				"          admission_date,",
+				"          discharge_date,",
+				"          diagnosis_code,",
+				"          cost = cost_clean",
+				"     )) ~> SNKVisitAccepted",
+				"SPLVisitValid@Rejected sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     format: 'parquet',",
 				"     fileSystem: 'healthcare-stagging',",
-				"     folderPath: 'staging/rejected/hospital',",
+				"     folderPath: 'staging/rejected/visits',",
 				"     umask: 0022,",
 				"     preCommands: [],",
 				"     postCommands: [],",
 				"     skipDuplicateMapInputs: true,",
-				"     skipDuplicateMapOutputs: true) ~> SNKHospitalRejected"
+				"     skipDuplicateMapOutputs: true,",
+				"     mapColumn(",
+				"          visit_id,",
+				"          patient_id,",
+				"          hospital_id,",
+				"          admission_date,",
+				"          discharge_date,",
+				"          diagnosis_code,",
+				"          cost,",
+				"          duplicate_rank,",
+				"          rejection_reason",
+				"     )) ~> SNKVisitRejected"
 			]
 		}
 	}
