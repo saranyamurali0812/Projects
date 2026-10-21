@@ -15,10 +15,6 @@
 		"typeProperties": {
 			"location": {
 				"type": "AzureBlobFSLocation",
-				"fileName": {
-					"value": "@dataset().pFileName",
-					"type": "Expression"
-				},
 				"folderPath": "landing",
 				"fileSystem": "healthcare-sourcefiles"
 			},
