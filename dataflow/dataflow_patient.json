@@ -1,5 +1,5 @@
 {
-	"name": "dataflow_source",
+	"name": "dataflow_patient",
 	"properties": {
 		"type": "MappingDataFlow",
 		"typeProperties": {
@@ -54,7 +54,8 @@
 				"     allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     limit: 100,",
-				"     ignoreNoFilesFound: false) ~> SRCPatient",
+				"     ignoreNoFilesFound: false,",
+				"     wildcardPaths:['landing/patient_raw.csv']) ~> SRCPatient",
 				"SRCPatient derive(patient_id = trim(patient_id),",
 				"          first_name = trim(first_name),",
 				"          last_name = trim(last_name),",
