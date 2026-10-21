@@ -210,12 +210,6 @@
 												"dependencyConditions": [
 													"Succeeded"
 												]
-											},
-											{
-												"activity": "Wait1",
-												"dependencyConditions": [
-													"Succeeded"
-												]
 											}
 										],
 										"policy": {
@@ -229,15 +223,6 @@
 												"value": "@string(variables('CopyLog'))",
 												"type": "Expression"
 											}
-										}
-									},
-									{
-										"name": "Wait1",
-										"type": "Wait",
-										"dependsOn": [],
-										"userProperties": [],
-										"typeProperties": {
-											"waitTimeInSeconds": 1
 										}
 									}
 								]
