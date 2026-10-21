@@ -249,10 +249,14 @@
 							"userProperties": [],
 							"typeProperties": {
 								"dataset": {
-									"referenceName": "DS_Landing_CSV",
+									"referenceName": "DS_ADLS_Landing",
 									"type": "DatasetReference",
 									"parameters": {
-										"pFolder": "landing"
+										"pFoldername": "landing",
+										"pfilename": {
+											"value": "@item().name",
+											"type": "Expression"
+										}
 									}
 								},
 								"fieldList": [
