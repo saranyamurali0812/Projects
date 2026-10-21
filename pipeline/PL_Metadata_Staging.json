@@ -99,7 +99,7 @@
 							"userProperties": [],
 							"typeProperties": {
 								"expression": {
-									"value": "@and(\n  activity('Get Metadata-filecheck').output.exists,\n  greater(activity('Get Metadata-filecheck').output.size,0)\n)",
+									"value": "@greater(\n    activity('Get Metadata-filecheck').output.size,\n    0\n)",
 									"type": "Expression"
 								},
 								"ifFalseActivities": [
