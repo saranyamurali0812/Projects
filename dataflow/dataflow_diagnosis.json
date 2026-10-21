@@ -1,0 +1,96 @@
+{
+	"name": "dataflow_diagnosis",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "Ds_landing_folder",
+						"type": "DatasetReference"
+					},
+					"name": "SRCDiagnosis"
+				}
+			],
+			"sinks": [
+				{
+					"linkedService": {
+						"referenceName": "AzureDataLakeStorage_Ls",
+						"type": "LinkedServiceReference"
+					},
+					"name": "SNKDiagnosisAccepted"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureDataLakeStorage_Ls",
+						"type": "LinkedServiceReference"
+					},
+					"name": "SNKDignosisRejected"
+				}
+			],
+			"transformations": [
+				{
+					"name": "DRVDiagnosisClean"
+				},
+				{
+					"name": "WINDiagnosisDuplicate"
+				},
+				{
+					"name": "DRVDiagnosisRules"
+				},
+				{
+					"name": "SPLDiagnosisValid"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          diagnosis_code as string,",
+				"          diagnosis_desc as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     limit: 100,",
+				"     ignoreNoFilesFound: false,",
+				"     wildcardPaths:['landing/diagnosis_raw.csv']) ~> SRCDiagnosis",
+				"SRCDiagnosis derive(diagnosis_code = upper(trim(diagnosis_code)),",
+				"          diagnosis_desc = trim(diagnosis_desc)) ~> DRVDiagnosisClean",
+				"DRVDiagnosisClean window(over(diagnosis_code),",
+				"     asc(diagnosis_code, true),",
+				"     duplicate_rank = rowNumber()) ~> WINDiagnosisDuplicate",
+				"WINDiagnosisDuplicate derive(rejection_reason = iif(     isNull(diagnosis_code) || length(diagnosis_code) == 0,     'MISSING_DIAGNOSIS_CODE',     iif(         duplicate_rank > 1,         'DUPLICATE_DIAGNOSIS_CODE',         iif(             isNull(diagnosis_desc) || length(diagnosis_desc) == 0,             'MISSING_DIAGNOSIS_DESCRIPTION',             ''         )     ) )) ~> DRVDiagnosisRules",
+				"DRVDiagnosisRules split(rejection_reason == '',",
+				"     disjoint: false) ~> SPLDiagnosisValid@(Accepted, Rejected)",
+				"SPLDiagnosisValid@Accepted sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     fileSystem: 'healthcare-stagging',",
+				"     folderPath: 'staging/accepted/diagnosis',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     mapColumn(",
+				"          diagnosis_code,",
+				"          diagnosis_desc",
+				"     )) ~> SNKDiagnosisAccepted",
+				"SPLDiagnosisValid@Rejected sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     fileSystem: 'healthcare-stagging',",
+				"     folderPath: 'staging/rejected/diagnosis',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     mapColumn(",
+				"          diagnosis_code,",
+				"          diagnosis_desc,",
+				"          rejection_reason,",
+				"          duplicate_rank",
+				"     )) ~> SNKDignosisRejected"
+			]
+		}
+	}
+}
