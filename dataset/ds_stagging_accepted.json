@@ -5,12 +5,27 @@
 			"referenceName": "AzureDataLakeStorage_Ls",
 			"type": "LinkedServiceReference"
 		},
+		"parameters": {
+			"pFoldername": {
+				"type": "string"
+			},
+			"pFilename": {
+				"type": "string"
+			}
+		},
 		"annotations": [],
 		"type": "Parquet",
 		"typeProperties": {
 			"location": {
 				"type": "AzureBlobFSLocation",
-				"folderPath": "staging/accepted",
+				"fileName": {
+					"value": "@dataset().pFilename",
+					"type": "Expression"
+				},
+				"folderPath": {
+					"value": "@concat('staging/accepted/',dataset().pFoldername)",
+					"type": "Expression"
+				},
 				"fileSystem": "healthcare-stagging"
 			},
 			"compressionCodec": "snappy"
