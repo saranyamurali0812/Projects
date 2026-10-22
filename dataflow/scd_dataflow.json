@@ -19,7 +19,11 @@
 					"name": "staggingSourceHospital"
 				},
 				{
-					"name": "source2"
+					"linkedService": {
+						"referenceName": "AzureDataLakeStorage_Ls",
+						"type": "LinkedServiceReference"
+					},
+					"name": "sourcestaggingDiagnosis"
 				},
 				{
 					"linkedService": {
@@ -34,6 +38,13 @@
 						"type": "LinkedServiceReference"
 					},
 					"name": "sourcesqlHospital"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "sourceDiagnosis"
 				}
 			],
 			"sinks": [
@@ -52,10 +63,32 @@
 					"name": "TrgtUpdate"
 				},
 				{
-					"name": "sink1"
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "sinkTgtHospital"
 				},
 				{
-					"name": "sink2"
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "UpdateTgtHospital"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "InsertTdt"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "UpdateSNKDiag"
 				}
 			],
 			"transformations": [
@@ -66,10 +99,7 @@
 					"name": "HashkeyHospital"
 				},
 				{
-					"name": "derivedColumn3"
-				},
-				{
-					"name": "lookup3"
+					"name": "HashDaidnosis"
 				},
 				{
 					"name": "renamecolumn"
@@ -99,13 +129,31 @@
 					"name": "joinToTgt"
 				},
 				{
-					"name": "derivedColumn4"
+					"name": "addColumnHospital"
 				},
 				{
-					"name": "derivedColumn5"
+					"name": "UpdateColumnHospital"
 				},
 				{
-					"name": "alterRow1"
+					"name": "UpdateHospitalcolm"
+				},
+				{
+					"name": "RenameSrc"
+				},
+				{
+					"name": "joinTotheTgt"
+				},
+				{
+					"name": "splitRows"
+				},
+				{
+					"name": "AddDiagColum"
+				},
+				{
+					"name": "UpdateDiag"
+				},
+				{
+					"name": "UpdateColDiag"
 				}
 			],
 			"scriptLines": [
@@ -141,8 +189,17 @@
 				"     fileSystem: 'healthcare-stagging',",
 				"     folderPath: 'staging/accepted/hospital',",
 				"     fileName: 'part-00000-58c84afa-245f-4208-8950-9f5743d5b8de-c000.snappy.parquet') ~> staggingSourceHospital",
-				"source(allowSchemaDrift: true,",
-				"     validateSchema: false) ~> source2",
+				"source(output(",
+				"          diagnosis_code as string,",
+				"          diagnosis_desc as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     format: 'parquet',",
+				"     fileSystem: 'healthcare-stagging',",
+				"     folderPath: 'staging/accepted/diagnosis',",
+				"     fileName: 'part-00000-1562c686-f003-4a3c-b7fa-f1f66dd6fc10-c000.snappy.parquet') ~> sourcestaggingDiagnosis",
 				"source(output(",
 				"          tgt_patient_id as string,",
 				"          tgt_hashkey as long",
@@ -163,13 +220,19 @@
 				"     store: 'sqlserver',",
 				"     query: 'select hospital_id as tgt_hospital_id,Hashkey as tgt_hashkey from Hospital',",
 				"     isolationLevel: 'READ_UNCOMMITTED') ~> sourcesqlHospital",
+				"source(output(",
+				"          tgt_diagnosis_code as string,",
+				"          tgt_hashkey as long",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'query',",
+				"     store: 'sqlserver',",
+				"     query: 'select diagnosis_code as tgt_diagnosis_code,Hashkey as tgt_hashkey from Diagnosis',",
+				"     isolationLevel: 'READ_UNCOMMITTED') ~> sourceDiagnosis",
 				"renamecolumn derive(src_Hashkey = crc32(concat(src_patient_id,src_first_name,src_last_name,src_gender,toString(src_dob),src_city))) ~> Hashtagpatient",
 				"renameColumnHospital derive(src_Hashkey = crc32(concat(src_hospital_id,src_hospital_name,src_city,toString(src_bed)))) ~> HashkeyHospital",
-				"source2 derive() ~> derivedColumn3",
-				"derivedColumn3 lookup(ERROR_FUNCTION('') == ERROR_FUNCTION(''),",
-				"     multiple: false,",
-				"     pickup: 'any',",
-				"     broadcast: 'auto')~> lookup3",
+				"RenameSrc derive(src_Hashkey = crc32(concat(src_diagnosis_code,src_diagnosis_desc))) ~> HashDaidnosis",
 				"staggingpatient select(mapColumn(",
 				"          each(match(1==1),",
 				"               concat('src_',$$) = $$)",
@@ -196,15 +259,34 @@
 				"     skipDuplicateMapOutputs: true) ~> renameColumnHospital",
 				"joinToTgt split(isNull(tgt_hospital_id),",
 				"     src_hospital_id==tgt_hospital_id && src_Hashkey==tgt_hashkey,",
-				"     disjoint: false) ~> splitNewRecords@(NewRecordHospital, UpdateRecordHospital, )",
+				"     disjoint: false) ~> splitNewRecords@(NewRecordHospital, UpdateRecordHospital)",
 				"HashkeyHospital, sourcesqlHospital join(src_hospital_id == tgt_hospital_id,",
 				"     joinType:'left',",
 				"     matchType:'exact',",
 				"     ignoreSpaces: false,",
 				"     broadcast: 'auto')~> joinToTgt",
-				"splitNewRecords@NewRecordHospital derive() ~> derivedColumn4",
-				"splitNewRecords derive() ~> derivedColumn5",
-				"derivedColumn5 alterRow() ~> alterRow1",
+				"splitNewRecords@NewRecordHospital derive(src_created_at = currentTimestamp(),",
+				"          src_updated_at = currentTimestamp()) ~> addColumnHospital",
+				"splitNewRecords@UpdateRecordHospital derive(updated_at = currentTimestamp()) ~> UpdateColumnHospital",
+				"UpdateColumnHospital alterRow(updateIf(src_Hashkey!=tgt_hashkey)) ~> UpdateHospitalcolm",
+				"sourcestaggingDiagnosis select(mapColumn(",
+				"          each(match(1==1),",
+				"               concat('src_',$$) = $$)",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> RenameSrc",
+				"HashDaidnosis, sourceDiagnosis join(src_diagnosis_code == tgt_diagnosis_code,",
+				"     joinType:'left',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> joinTotheTgt",
+				"joinTotheTgt split(isNull(tgt_diagnosis_code),",
+				"     src_diagnosis_code==tgt_diagnosis_code&& src_Hashkey==tgt_hashkey,",
+				"     disjoint: false) ~> splitRows@(NewrecordDiag, UpdateDiag)",
+				"splitRows@NewrecordDiag derive(Created_at = currentTimestamp(),",
+				"          updated_at = currentTimestamp()) ~> AddDiagColum",
+				"UpdateColDiag alterRow(updateIf(src_Hashkey != tgt_hashkey)) ~> UpdateDiag",
+				"splitRows@UpdateDiag derive(update_at = currentTimestamp()) ~> UpdateColDiag",
 				"Altercolumn sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     format: 'table',",
@@ -255,14 +337,91 @@
 				"          Hashkey = src_Hashkey,",
 				"          updated_at",
 				"     )) ~> TrgtUpdate",
-				"derivedColumn4 sink(allowSchemaDrift: true,",
+				"addColumnHospital sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
+				"     format: 'table',",
+				"     store: 'sqlserver',",
+				"     schemaName: 'dbo',",
+				"     tableName: 'Hospital',",
+				"     insertable: true,",
+				"     updateable: false,",
+				"     deletable: false,",
+				"     upsertable: false,",
 				"     skipDuplicateMapInputs: true,",
-				"     skipDuplicateMapOutputs: true) ~> sink1",
-				"alterRow1 sink(allowSchemaDrift: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          hospital_id = src_hospital_id,",
+				"          hospital_name = src_hospital_name,",
+				"          city = src_city,",
+				"          bed = src_bed,",
+				"          Hashkey = src_Hashkey,",
+				"          created_at = src_created_at,",
+				"          updated_at = src_updated_at",
+				"     )) ~> sinkTgtHospital",
+				"UpdateHospitalcolm sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
+				"     format: 'table',",
+				"     store: 'sqlserver',",
+				"     schemaName: 'dbo',",
+				"     tableName: 'Hospital',",
+				"     insertable: false,",
+				"     updateable: true,",
+				"     deletable: false,",
+				"     upsertable: false,",
+				"     keys:['hospital_id'],",
 				"     skipDuplicateMapInputs: true,",
-				"     skipDuplicateMapOutputs: true) ~> sink2"
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          hospital_id = src_hospital_id,",
+				"          hospital_name = src_hospital_name,",
+				"          city = src_city,",
+				"          bed = src_bed,",
+				"          Hashkey = src_Hashkey,",
+				"          updated_at",
+				"     )) ~> UpdateTgtHospital",
+				"AddDiagColum sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'table',",
+				"     store: 'sqlserver',",
+				"     schemaName: 'dbo',",
+				"     tableName: 'Diagnosis',",
+				"     insertable: true,",
+				"     updateable: false,",
+				"     deletable: false,",
+				"     upsertable: false,",
+				"     stagingSchemaName: '',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          diagnosis_code = src_diagnosis_code,",
+				"          diagnosis_desc = src_diagnosis_desc,",
+				"          Hashkey = src_Hashkey,",
+				"          Created_at,",
+				"          updated_at",
+				"     )) ~> InsertTdt",
+				"UpdateDiag sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'table',",
+				"     store: 'sqlserver',",
+				"     schemaName: 'dbo',",
+				"     tableName: 'Diagnosis',",
+				"     insertable: false,",
+				"     updateable: true,",
+				"     deletable: false,",
+				"     upsertable: false,",
+				"     keys:['diagnosis_code'],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          diagnosis_code = src_diagnosis_code,",
+				"          diagnosis_desc = src_diagnosis_desc,",
+				"          Hashkey = src_Hashkey,",
+				"          update_at",
+				"     )) ~> UpdateSNKDiag"
 			]
 		}
 	}
