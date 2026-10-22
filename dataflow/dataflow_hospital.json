@@ -71,6 +71,7 @@
 				"     format: 'parquet',",
 				"     fileSystem: 'healthcare-stagging',",
 				"     folderPath: 'staging/accepted/hospital',",
+				"     partitionFileNames:['Hospita_stagging'],",
 				"     umask: 0022,",
 				"     preCommands: [],",
 				"     postCommands: [],",
