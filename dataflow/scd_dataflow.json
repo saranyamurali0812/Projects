@@ -1,0 +1,76 @@
+{
+	"name": "scd_dataflow",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"linkedService": {
+						"referenceName": "AzureDataLakeStorage_Ls",
+						"type": "LinkedServiceReference"
+					},
+					"name": "staggingpatient"
+				},
+				{
+					"name": "source1"
+				},
+				{
+					"name": "source2"
+				}
+			],
+			"sinks": [],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "lookup1"
+				},
+				{
+					"name": "alterRow1"
+				},
+				{
+					"name": "derivedColumn2"
+				},
+				{
+					"name": "lookup2"
+				},
+				{
+					"name": "derivedColumn3"
+				},
+				{
+					"name": "lookup3"
+				}
+			],
+			"scriptLines": [
+				"source(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     format: 'parquet',",
+				"     fileSystem: 'healthcare-stagging',",
+				"     folderPath: 'staging/accepted/patient',",
+				"     fileName: 'part-00000-1ca371d1-2aef-4177-af6b-895dac611874-c000.snappy.parquet') ~> staggingpatient",
+				"source(allowSchemaDrift: true,",
+				"     validateSchema: false) ~> source1",
+				"source(allowSchemaDrift: true,",
+				"     validateSchema: false) ~> source2",
+				"staggingpatient derive(Hashkey = crc32(concat())) ~> derivedColumn1",
+				"derivedColumn1 lookup(ERROR_FUNCTION('') == ERROR_FUNCTION(''),",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> lookup1",
+				"lookup1 alterRow() ~> alterRow1",
+				"source1 derive() ~> derivedColumn2",
+				"derivedColumn2 lookup(ERROR_FUNCTION('') == ERROR_FUNCTION(''),",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> lookup2",
+				"source2 derive() ~> derivedColumn3",
+				"derivedColumn3 lookup(ERROR_FUNCTION('') == ERROR_FUNCTION(''),",
+				"     multiple: false,",
+				"     pickup: 'any',",
+				"     broadcast: 'auto')~> lookup3"
+			]
+		}
+	}
+}
