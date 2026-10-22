@@ -12,7 +12,11 @@
 					"name": "staggingpatient"
 				},
 				{
-					"name": "source1"
+					"linkedService": {
+						"referenceName": "AzureDataLakeStorage_Ls",
+						"type": "LinkedServiceReference"
+					},
+					"name": "staggingSourceHospital"
 				},
 				{
 					"name": "source2"
@@ -23,6 +27,13 @@
 						"type": "LinkedServiceReference"
 					},
 					"name": "sourcesqlpatient"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "sourcesqlHospital"
 				}
 			],
 			"sinks": [
@@ -39,6 +50,12 @@
 						"type": "LinkedServiceReference"
 					},
 					"name": "TrgtUpdate"
+				},
+				{
+					"name": "sink1"
+				},
+				{
+					"name": "sink2"
 				}
 			],
 			"transformations": [
@@ -46,10 +63,7 @@
 					"name": "Hashtagpatient"
 				},
 				{
-					"name": "derivedColumn2"
-				},
-				{
-					"name": "lookup2"
+					"name": "HashkeyHospital"
 				},
 				{
 					"name": "derivedColumn3"
@@ -74,6 +88,24 @@
 				},
 				{
 					"name": "Upsertdta"
+				},
+				{
+					"name": "renameColumnHospital"
+				},
+				{
+					"name": "splitNewRecords"
+				},
+				{
+					"name": "joinToTgt"
+				},
+				{
+					"name": "derivedColumn4"
+				},
+				{
+					"name": "derivedColumn5"
+				},
+				{
+					"name": "alterRow1"
 				}
 			],
 			"scriptLines": [
@@ -96,8 +128,19 @@
 				"     folderPath: 'staging/accepted/patient',",
 				"     fileName: 'part-00000-1ca371d1-2aef-4177-af6b-895dac611874-c000.snappy.parquet',",
 				"     compressionCodec: 'snappy') ~> staggingpatient",
-				"source(allowSchemaDrift: true,",
-				"     validateSchema: false) ~> source1",
+				"source(output(",
+				"          hospital_id as string,",
+				"          hospital_name as string,",
+				"          city as string,",
+				"          bed as short",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     format: 'parquet',",
+				"     fileSystem: 'healthcare-stagging',",
+				"     folderPath: 'staging/accepted/hospital',",
+				"     fileName: 'part-00000-58c84afa-245f-4208-8950-9f5743d5b8de-c000.snappy.parquet') ~> staggingSourceHospital",
 				"source(allowSchemaDrift: true,",
 				"     validateSchema: false) ~> source2",
 				"source(output(",
@@ -110,12 +153,18 @@
 				"     store: 'sqlserver',",
 				"     query: 'select patient_id as tgt_patient_id,Hashkey as tgt_hashkey from Patient',",
 				"     isolationLevel: 'READ_UNCOMMITTED') ~> sourcesqlpatient",
+				"source(output(",
+				"          tgt_hospital_id as string,",
+				"          tgt_hashkey as long",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'query',",
+				"     store: 'sqlserver',",
+				"     query: 'select hospital_id as tgt_hospital_id,Hashkey as tgt_hashkey from Hospital',",
+				"     isolationLevel: 'READ_UNCOMMITTED') ~> sourcesqlHospital",
 				"renamecolumn derive(src_Hashkey = crc32(concat(src_patient_id,src_first_name,src_last_name,src_gender,toString(src_dob),src_city))) ~> Hashtagpatient",
-				"source1 derive() ~> derivedColumn2",
-				"derivedColumn2 lookup(ERROR_FUNCTION('') == ERROR_FUNCTION(''),",
-				"     multiple: false,",
-				"     pickup: 'any',",
-				"     broadcast: 'auto')~> lookup2",
+				"renameColumnHospital derive(src_Hashkey = crc32(concat(src_hospital_id,src_hospital_name,src_city,toString(src_bed)))) ~> HashkeyHospital",
 				"source2 derive() ~> derivedColumn3",
 				"derivedColumn3 lookup(ERROR_FUNCTION('') == ERROR_FUNCTION(''),",
 				"     multiple: false,",
@@ -138,7 +187,24 @@
 				"SpltnewRecords@NewRecord derive(created_date = currentTimestamp(),",
 				"          updated_date = currentTimestamp()) ~> Altercolumn",
 				"SpltnewRecords@UpdateRecord derive(updated_at = currentTimestamp()) ~> UpdatedColumn",
-				"UpdatedColumn alterRow(updateIf(src_Hashkey != tgt_hashkey)) ~> Upsertdta",
+				"UpdatedColumn alterRow(updateIf(src_Hashkey!=tgt_hashkey)) ~> Upsertdta",
+				"staggingSourceHospital select(mapColumn(",
+				"          each(match(1==1),",
+				"               concat('src_',$$) = $$)",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> renameColumnHospital",
+				"joinToTgt split(isNull(tgt_hospital_id),",
+				"     src_hospital_id==tgt_hospital_id && src_Hashkey==tgt_hashkey,",
+				"     disjoint: false) ~> splitNewRecords@(NewRecordHospital, UpdateRecordHospital, )",
+				"HashkeyHospital, sourcesqlHospital join(src_hospital_id == tgt_hospital_id,",
+				"     joinType:'left',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> joinToTgt",
+				"splitNewRecords@NewRecordHospital derive() ~> derivedColumn4",
+				"splitNewRecords derive() ~> derivedColumn5",
+				"derivedColumn5 alterRow() ~> alterRow1",
 				"Altercolumn sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     format: 'table',",
@@ -188,7 +254,15 @@
 				"          city = src_city,",
 				"          Hashkey = src_Hashkey,",
 				"          updated_at",
-				"     )) ~> TrgtUpdate"
+				"     )) ~> TrgtUpdate",
+				"derivedColumn4 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> sink1",
+				"alterRow1 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> sink2"
 			]
 		}
 	}
