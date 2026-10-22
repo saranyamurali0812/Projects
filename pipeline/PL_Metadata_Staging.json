@@ -401,13 +401,16 @@
 						},
 						"VisitRows": {
 							"value": {
-								"value": "@activity('scd_dataflow').output.runStatus.metrics.InsertTgtVisit.rowsWritten",
+								"value": "@activity('scd_dataflow_Visit').output.runStatus.metrics.InsertTgtVisit.rowsWritten",
 								"type": "Expression"
 							},
 							"type": "Int64"
 						},
 						"VisitRowsupdated": {
-							"value": "@activity('scd_dataflow').output.runStatus.metrics.TrgtUpdate.rowsWritten",
+							"value": {
+								"value": "@activity('scd_dataflow_Visit').output.runStatus.metrics.TrgtUpdate.rowsWritten",
+								"type": "Expression"
+							},
 							"type": "Int64"
 						}
 					}
