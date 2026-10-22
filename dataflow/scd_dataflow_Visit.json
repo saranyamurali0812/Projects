@@ -1,0 +1,178 @@
+{
+	"name": "scd_dataflow_Visit",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"linkedService": {
+						"referenceName": "AzureDataLakeStorage_Ls",
+						"type": "LinkedServiceReference"
+					},
+					"name": "staggingVisit"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "sourcesqlvisit"
+				}
+			],
+			"sinks": [
+				{
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "InsertTgtVisit"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "TrgtUpdate"
+				}
+			],
+			"transformations": [
+				{
+					"name": "Hashtagvisit"
+				},
+				{
+					"name": "renamecolumn"
+				},
+				{
+					"name": "jointotarget"
+				},
+				{
+					"name": "SpltnewRecords"
+				},
+				{
+					"name": "Altercolumn"
+				},
+				{
+					"name": "UpdatedColumn"
+				},
+				{
+					"name": "Upsertdta"
+				}
+			],
+			"scriptLines": [
+				"parameters{",
+				"     parameter1 as string (visit_id)",
+				"}",
+				"source(output(",
+				"          visit_id as string,",
+				"          patient_id as string,",
+				"          hospital_id as string,",
+				"          admission_date as string,",
+				"          discharge_date as date,",
+				"          diagnosis_code as date,",
+				"          cost as decimal(18,2)",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     format: 'parquet',",
+				"     fileSystem: 'healthcare-stagging',",
+				"     folderPath: 'staging/accepted/visits',",
+				"     fileName: 'Visit_stagging',",
+				"     compressionCodec: 'snappy') ~> staggingVisit",
+				"source(output(",
+				"          tgt_visit_id as string,",
+				"          tgt_hashkey as long",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'query',",
+				"     store: 'sqlserver',",
+				"     query: 'select visit_id as tgt_visit_id,Hashkey as tgt_hashkey from Visit',",
+				"     isolationLevel: 'READ_UNCOMMITTED') ~> sourcesqlvisit",
+				"renamecolumn derive(src_Hashkey = crc32(concat(src_visit_id,src_patient_id,src_hospital_id,toString(src_admission_date),toString(src_discharge_date),toString(src_cost)))) ~> Hashtagvisit",
+				"staggingVisit select(mapColumn(",
+				"          each(match(1==1),",
+				"               concat('src_',$$) = $$)",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> renamecolumn",
+				"Hashtagvisit, sourcesqlvisit join(src_visit_id == tgt_visit_id,",
+				"     joinType:'left',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> jointotarget",
+				"jointotarget split(isNull(tgt_visit_id),",
+				"     src_visit_id==tgt_visit_id&& src_Hashkey==tgt_hashkey,",
+				"     disjoint: false) ~> SpltnewRecords@(NewRecord, UpdateRecord)",
+				"SpltnewRecords@NewRecord derive(created_date = currentTimestamp(),",
+				"          updated_date = currentTimestamp()) ~> Altercolumn",
+				"SpltnewRecords@UpdateRecord derive(updated_at = currentTimestamp()) ~> UpdatedColumn",
+				"UpdatedColumn alterRow(updateIf(src_Hashkey!=tgt_hashkey)) ~> Upsertdta",
+				"Altercolumn sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          visit_id as string,",
+				"          patient_id as string,",
+				"          hospital_id as string,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          diagnosis_code as string,",
+				"          cost as decimal(18,2),",
+				"          Hashkey as long,",
+				"          created_at as timestamp,",
+				"          updated_at as timestamp",
+				"     ),",
+				"     format: 'table',",
+				"     store: 'sqlserver',",
+				"     schemaName: 'dbo',",
+				"     tableName: 'Visit',",
+				"     insertable: true,",
+				"     updateable: false,",
+				"     deletable: false,",
+				"     upsertable: false,",
+				"     stagingSchemaName: '',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          visit_id = src_visit_id,",
+				"          patient_id = src_patient_id,",
+				"          hospital_id = src_hospital_id,",
+				"          admission_date = src_admission_date,",
+				"          discharge_date = src_discharge_date,",
+				"          diagnosis_code = src_diagnosis_code,",
+				"          Hashkey = src_Hashkey,",
+				"          created_at = created_date,",
+				"          updated_at = updated_date,",
+				"          cost = src_cost",
+				"     )) ~> InsertTgtVisit",
+				"Upsertdta sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'table',",
+				"     store: 'sqlserver',",
+				"     schemaName: 'dbo',",
+				"     tableName: 'Visit',",
+				"     insertable: false,",
+				"     updateable: true,",
+				"     deletable: false,",
+				"     upsertable: false,",
+				"     keys:['visit_id'],",
+				"     stagingSchemaName: '',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          visit_id = src_visit_id,",
+				"          patient_id = src_patient_id,",
+				"          hospital_id = src_hospital_id,",
+				"          dmission_date = src_admission_date,",
+				"          discharge_date = src_discharge_date,",
+				"          diagnosis_code = src_diagnosis_code,",
+				"          Hashkey = src_Hashkey,",
+				"          updated_at,",
+				"          cost = src_cost",
+				"     )) ~> TrgtUpdate"
+			]
+		}
+	}
+}

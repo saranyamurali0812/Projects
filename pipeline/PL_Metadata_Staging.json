@@ -296,6 +296,126 @@
 					},
 					"traceLevel": "Fine"
 				}
+			},
+			{
+				"name": "scd_dataflow_Visit",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [
+					{
+						"activity": "scd_dataflow",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "scd_dataflow_Visit",
+						"type": "DataFlowReference",
+						"parameters": {
+							"parameter1": "visit_id"
+						}
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Fine"
+				}
+			},
+			{
+				"name": "Stored procedure_auditlog",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "scd_dataflow_Visit",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[usp_Save_DataFlow_Audit]",
+					"storedProcedureParameters": {
+						"DiagnosisRows": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.InsertTdt.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"DiagnosisRowsupdated": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.UpdateSNKDiag.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"HospitalRows": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.sinkTgtHospital.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"HospitalRowsupdated": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.UpdateTgtHospital.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"PatientRows": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.InsertTgtPatient.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"PatientRowsupdated": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.TrgtUpdate.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"PipelineRunId": {
+							"value": "@pipeline().RunId",
+							"type": "String"
+						},
+						"VisitRows": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.InsertTgtVisit.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"VisitRowsupdated": {
+							"value": "@activity('scd_dataflow').output.runStatus.metrics.TrgtUpdate.rowsWritten",
+							"type": "Int64"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
 			}
 		],
 		"variables": {
