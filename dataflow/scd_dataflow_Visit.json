@@ -115,7 +115,7 @@
 				"     ignoreSpaces: false,",
 				"     broadcast: 'auto')~> jointotarget",
 				"jointotarget split(isNull(tgt_visit_id),",
-				"     src_visit_id==tgt_visit_id&& src_Hashkey==tgt_hashkey,",
+				"     !isNull(tgt_visit_id) && src_Hashkey != tgt_hashkey,",
 				"     disjoint: false) ~> SpltnewRecords@(NewRecord, UpdateRecord)",
 				"SpltnewRecords@NewRecord derive(created_date = currentTimestamp(),",
 				"          updated_date = currentTimestamp()) ~> Altercolumn",
