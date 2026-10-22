@@ -16,18 +16,34 @@
 				},
 				{
 					"name": "source2"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "sourcesqlpatient"
 				}
 			],
-			"sinks": [],
+			"sinks": [
+				{
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "InsertTgtPatient"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureSqlDatabase1",
+						"type": "LinkedServiceReference"
+					},
+					"name": "TrgtUpdate"
+				}
+			],
 			"transformations": [
 				{
-					"name": "derivedColumn1"
-				},
-				{
-					"name": "lookup1"
-				},
-				{
-					"name": "alterRow1"
+					"name": "Hashtagpatient"
 				},
 				{
 					"name": "derivedColumn2"
@@ -40,26 +56,61 @@
 				},
 				{
 					"name": "lookup3"
+				},
+				{
+					"name": "renamecolumn"
+				},
+				{
+					"name": "jointotarget"
+				},
+				{
+					"name": "SpltnewRecords"
+				},
+				{
+					"name": "Altercolumn"
+				},
+				{
+					"name": "UpdatedColumn"
+				},
+				{
+					"name": "Upsertdta"
 				}
 			],
 			"scriptLines": [
-				"source(allowSchemaDrift: true,",
+				"parameters{",
+				"     parameter1 as string (patient_id)",
+				"}",
+				"source(output(",
+				"          patient_id as string,",
+				"          first_name as string,",
+				"          last_name as string,",
+				"          gender as string,",
+				"          dob as date,",
+				"          city as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     ignoreNoFilesFound: false,",
 				"     format: 'parquet',",
 				"     fileSystem: 'healthcare-stagging',",
 				"     folderPath: 'staging/accepted/patient',",
-				"     fileName: 'part-00000-1ca371d1-2aef-4177-af6b-895dac611874-c000.snappy.parquet') ~> staggingpatient",
+				"     fileName: 'part-00000-1ca371d1-2aef-4177-af6b-895dac611874-c000.snappy.parquet',",
+				"     compressionCodec: 'snappy') ~> staggingpatient",
 				"source(allowSchemaDrift: true,",
 				"     validateSchema: false) ~> source1",
 				"source(allowSchemaDrift: true,",
 				"     validateSchema: false) ~> source2",
-				"staggingpatient derive(Hashkey = crc32(concat())) ~> derivedColumn1",
-				"derivedColumn1 lookup(ERROR_FUNCTION('') == ERROR_FUNCTION(''),",
-				"     multiple: false,",
-				"     pickup: 'any',",
-				"     broadcast: 'auto')~> lookup1",
-				"lookup1 alterRow() ~> alterRow1",
+				"source(output(",
+				"          tgt_patient_id as string,",
+				"          tgt_hashkey as long",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'query',",
+				"     store: 'sqlserver',",
+				"     query: 'select patient_id as tgt_patient_id,Hashkey as tgt_hashkey from Patient',",
+				"     isolationLevel: 'READ_UNCOMMITTED') ~> sourcesqlpatient",
+				"renamecolumn derive(src_Hashkey = crc32(concat(src_patient_id,src_first_name,src_last_name,src_gender,toString(src_dob),src_city))) ~> Hashtagpatient",
 				"source1 derive() ~> derivedColumn2",
 				"derivedColumn2 lookup(ERROR_FUNCTION('') == ERROR_FUNCTION(''),",
 				"     multiple: false,",
@@ -69,7 +120,75 @@
 				"derivedColumn3 lookup(ERROR_FUNCTION('') == ERROR_FUNCTION(''),",
 				"     multiple: false,",
 				"     pickup: 'any',",
-				"     broadcast: 'auto')~> lookup3"
+				"     broadcast: 'auto')~> lookup3",
+				"staggingpatient select(mapColumn(",
+				"          each(match(1==1),",
+				"               concat('src_',$$) = $$)",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> renamecolumn",
+				"Hashtagpatient, sourcesqlpatient join(src_patient_id == tgt_patient_id,",
+				"     joinType:'left',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> jointotarget",
+				"jointotarget split(isNull(tgt_patient_id),",
+				"     src_patient_id==tgt_patient_id && src_Hashkey==tgt_hashkey,",
+				"     disjoint: false) ~> SpltnewRecords@(NewRecord, UpdateRecord)",
+				"SpltnewRecords@NewRecord derive(created_date = currentTimestamp(),",
+				"          updated_date = currentTimestamp()) ~> Altercolumn",
+				"SpltnewRecords@UpdateRecord derive(updated_at = currentTimestamp()) ~> UpdatedColumn",
+				"UpdatedColumn alterRow(updateIf(src_Hashkey != tgt_hashkey)) ~> Upsertdta",
+				"Altercolumn sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'table',",
+				"     store: 'sqlserver',",
+				"     schemaName: 'dbo',",
+				"     tableName: 'Patient',",
+				"     insertable: true,",
+				"     updateable: false,",
+				"     deletable: false,",
+				"     upsertable: false,",
+				"     stagingSchemaName: '',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          patient_id = src_patient_id,",
+				"          first_name = src_first_name,",
+				"          last_name = src_last_name,",
+				"          gender = src_gender,",
+				"          dob = src_dob,",
+				"          city = src_city,",
+				"          Hashkey = src_Hashkey,",
+				"          created_at = created_date,",
+				"          updated_at = updated_date",
+				"     )) ~> InsertTgtPatient",
+				"Upsertdta sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'table',",
+				"     store: 'sqlserver',",
+				"     schemaName: 'dbo',",
+				"     tableName: 'Patient',",
+				"     insertable: false,",
+				"     updateable: true,",
+				"     deletable: false,",
+				"     upsertable: false,",
+				"     keys:['patient_id'],",
+				"     stagingSchemaName: '',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          patient_id = src_patient_id,",
+				"          first_name = src_first_name,",
+				"          last_name = src_last_name,",
+				"          gender = src_gender,",
+				"          dob = src_dob,",
+				"          city = src_city,",
+				"          Hashkey = src_Hashkey,",
+				"          updated_at",
+				"     )) ~> TrgtUpdate"
 			]
 		}
 	}
