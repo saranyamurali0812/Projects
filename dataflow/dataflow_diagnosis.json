@@ -65,6 +65,7 @@
 				"     format: 'parquet',",
 				"     fileSystem: 'healthcare-stagging',",
 				"     folderPath: 'staging/accepted/diagnosis',",
+				"     truncate: true,",
 				"     partitionFileNames:['Diagnosis_stagging'],",
 				"     umask: 0022,",
 				"     preCommands: [],",
