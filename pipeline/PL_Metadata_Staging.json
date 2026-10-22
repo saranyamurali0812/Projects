@@ -138,126 +138,137 @@
 									"value": "@concat('Missing or empty source file: ',activity('Filter_landing').output.name)",
 									"type": "Expression"
 								},
-								"errorCode": "ER_001"
-							}
-						}
-					],
-					"ifTrueActivities": [
-						{
-							"name": "dataflow_patient",
-							"type": "ExecuteDataFlow",
-							"dependsOn": [],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"dataflow": {
-									"referenceName": "dataflow_patient",
-									"type": "DataFlowReference"
-								},
-								"integrationRuntime": {
-									"referenceName": "IR-Healthcare-Public",
-									"type": "IntegrationRuntimeReference"
-								},
-								"traceLevel": "Fine"
-							}
-						},
-						{
-							"name": "dataflow_hospital",
-							"type": "ExecuteDataFlow",
-							"dependsOn": [
-								{
-									"activity": "dataflow_patient",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"dataflow": {
-									"referenceName": "dataflow_hospital",
-									"type": "DataFlowReference"
-								},
-								"integrationRuntime": {
-									"referenceName": "IR-Healthcare-Public",
-									"type": "IntegrationRuntimeReference"
-								},
-								"traceLevel": "Fine"
-							}
-						},
-						{
-							"name": "dataflow_diagnosis",
-							"type": "ExecuteDataFlow",
-							"dependsOn": [
-								{
-									"activity": "dataflow_hospital",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"dataflow": {
-									"referenceName": "dataflow_diagnosis",
-									"type": "DataFlowReference"
-								},
-								"integrationRuntime": {
-									"referenceName": "IR-Healthcare-Public",
-									"type": "IntegrationRuntimeReference"
-								},
-								"traceLevel": "Fine"
-							}
-						},
-						{
-							"name": "dataflow_visits",
-							"type": "ExecuteDataFlow",
-							"dependsOn": [
-								{
-									"activity": "dataflow_diagnosis",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
-							"policy": {
-								"timeout": "0.12:00:00",
-								"retry": 0,
-								"retryIntervalInSeconds": 30,
-								"secureOutput": false,
-								"secureInput": false
-							},
-							"userProperties": [],
-							"typeProperties": {
-								"dataflow": {
-									"referenceName": "dataflow_visits",
-									"type": "DataFlowReference"
-								},
-								"integrationRuntime": {
-									"referenceName": "IR-Healthcare-Public",
-									"type": "IntegrationRuntimeReference"
-								},
-								"traceLevel": "Fine"
+								"ifFalseActivities": [
+									{
+										"name": "Fileerror",
+										"type": "Fail",
+										"dependsOn": [],
+										"userProperties": [],
+										"typeProperties": {
+											"message": {
+												"value": "@concat('Missing or empty source file: ',item().name)",
+												"type": "Expression"
+											},
+											"errorCode": "ER_001"
+										}
+									}
+								],
+								"ifTrueActivities": [
+									{
+										"name": "CP-landing-staging",
+										"type": "Copy",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "DelimitedTextSource",
+												"storeSettings": {
+													"type": "AzureBlobFSReadSettings",
+													"recursive": true,
+													"enablePartitionDiscovery": false
+												},
+												"formatSettings": {
+													"type": "DelimitedTextReadSettings"
+												}
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings",
+													"copyBehavior": "FlattenHierarchy"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "DS_ADLS_Landing",
+												"type": "DatasetReference",
+												"parameters": {
+													"pFoldername": "landing",
+													"pfilename": {
+														"value": "@item().name",
+														"type": "Expression"
+													}
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "DS_Staging_Parquet",
+												"type": "DatasetReference",
+												"parameters": {
+													"pFolderName": {
+														"value": "@concat(\n  'staging/accepted/',\n  replace(item().name,'_raw.csv','')\n)",
+														"type": "Expression"
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "Loq-count",
+										"type": "AppendVariable",
+										"dependsOn": [
+											{
+												"activity": "CP-landing-staging",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"userProperties": [],
+										"typeProperties": {
+											"variableName": "CopyLog",
+											"value": {
+												"value": "@json(concat(\n  '{\"Activity\":\"CP-landing-staging\",',\n  '\"RowsRead\":',string(activity('CP-landing-staging').output.rowsRead),',',\n  '\"RowsCopied\":',string(activity('CP-landing-staging').output.rowsCopied),\n  '}'\n))",
+												"type": "Expression"
+											}
+										}
+									},
+									{
+										"name": "Copylog-count",
+										"type": "SetVariable",
+										"dependsOn": [
+											{
+												"activity": "Loq-count",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"variableName": "Logdata",
+											"value": {
+												"value": "@string(variables('CopyLog'))",
+												"type": "Expression"
+											}
+										}
+									}
+								]
 							}
 						}
 					]
