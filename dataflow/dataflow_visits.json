@@ -10,6 +10,13 @@
 						"type": "DatasetReference"
 					},
 					"name": "SRCVisits"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureDataLakeStorage_Ls",
+						"type": "LinkedServiceReference"
+					},
+					"name": "sourcepatientaccepted"
 				}
 			],
 			"sinks": [
@@ -26,6 +33,13 @@
 						"type": "LinkedServiceReference"
 					},
 					"name": "SNKVisitRejected"
+				},
+				{
+					"linkedService": {
+						"referenceName": "AzureDataLakeStorage_Ls",
+						"type": "LinkedServiceReference"
+					},
+					"name": "sinkmissmatchedrecors"
 				}
 			],
 			"transformations": [
@@ -40,6 +54,18 @@
 				},
 				{
 					"name": "SPLVisitValid"
+				},
+				{
+					"name": "existspatient"
+				},
+				{
+					"name": "EXMissingPatient"
+				},
+				{
+					"name": "select1"
+				},
+				{
+					"name": "Addmissmatchcolumn"
 				}
 			],
 			"scriptLines": [
@@ -57,6 +83,12 @@
 				"     limit: 100,",
 				"     ignoreNoFilesFound: false,",
 				"     wildcardPaths:['landing/visit_raw.csv']) ~> SRCVisits",
+				"source(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false,",
+				"     format: 'parquet',",
+				"     fileSystem: 'healthcare-stagging',",
+				"     folderPath: 'staging/accepted/patient') ~> sourcepatientaccepted",
 				"SRCVisits derive(visit_id = trim(visit_id),",
 				"          patient_id = trim(patient_id),",
 				"          hospital_id = trim(hospital_id),",
@@ -70,7 +102,26 @@
 				"WINVisitDuplicate derive(rejection_reason = iif(     isNull(visit_id) || length(trim(toString(visit_id))) == 0,     'Missing visit_id',     iif(         isNull(patient_id) || length(trim(toString(patient_id))) == 0,         'Missing patient_id',         iif(             isNull(hospital_id) || length(trim(toString(hospital_id))) == 0,             'Missing hospital_id',             iif(                 isNull(admission_date),                 'Missing admission_date',                 iif(                     isNull(discharge_date),                     'Missing discharge_date',                     iif(                         toDate(toString(discharge_date), 'yyyy-MM-dd') <                         toDate(toString(admission_date), 'yyyy-MM-dd'),                         'Discharge date before admission date',                         iif(                             isNull(cost_clean),                             'Invalid or missing cost',                             iif(                                 cost_clean < 0,                                 'Negative cost',                                 'Accepted'                             )                         )                     )                 )             )         )     ) )) ~> DRVVisitsRules",
 				"DRVVisitsRules split(rejection_reason == '',",
 				"     disjoint: false) ~> SPLVisitValid@(Accepted, Rejected)",
-				"SPLVisitValid@Accepted sink(allowSchemaDrift: true,",
+				"SPLVisitValid@Accepted, sourcepatientaccepted exists(patient_id == patient_id,",
+				"     negate:false,",
+				"     broadcast: 'auto')~> existspatient",
+				"SPLVisitValid@Accepted, sourcepatientaccepted exists(patient_id == patient_id,",
+				"     negate:true,",
+				"     broadcast: 'auto')~> EXMissingPatient",
+				"Addmissmatchcolumn select(mapColumn(",
+				"          visit_id,",
+				"          patient_id,",
+				"          hospital_id,",
+				"          admission_date,",
+				"          discharge_date,",
+				"          diagnosis_code,",
+				"          cost,",
+				"          rejected_column = rejection_reason",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select1",
+				"EXMissingPatient derive(Missmatch = 'patiend_id not found') ~> Addmissmatchcolumn",
+				"existspatient sink(allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     format: 'parquet',",
 				"     fileSystem: 'healthcare-stagging',",
@@ -109,7 +160,17 @@
 				"          cost,",
 				"          duplicate_rank,",
 				"          rejection_reason",
-				"     )) ~> SNKVisitRejected"
+				"     )) ~> SNKVisitRejected",
+				"select1 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     format: 'parquet',",
+				"     fileSystem: 'healthcare-stagging',",
+				"     folderPath: 'staging/rejected/visits/missmatched',",
+				"     umask: 0022,",
+				"     preCommands: [],",
+				"     postCommands: [],",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> sinkmissmatchedrecors"
 			]
 		}
 	}
