@@ -1,0 +1,20 @@
+{
+	"name": "ds_stagging_rejected",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureDataLakeStorage_Ls",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": "staging/rejected/patient",
+				"fileSystem": "healthcare-stagging"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": []
+	}
+}

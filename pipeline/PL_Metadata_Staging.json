@@ -27,7 +27,6 @@
 							"value": "childItems",
 							"type": "Expression"
 						},
-						"exists",
 						{
 							"value": "Size",
 							"type": "Expression"
@@ -67,8 +66,8 @@
 				}
 			},
 			{
-				"name": "FE_Process_Source_Files",
-				"type": "ForEach",
+				"name": "Get Metadata-filecheck",
+				"type": "GetMetadata",
 				"dependsOn": [
 					{
 						"activity": "Filter_landing",
@@ -77,22 +76,66 @@
 						]
 					}
 				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
 				"userProperties": [],
 				"typeProperties": {
-					"items": {
-						"value": "@activity('Filter_landing').output.value ",
+					"dataset": {
+						"referenceName": "DS_ADLS_Landing",
+						"type": "DatasetReference",
+						"parameters": {
+							"pFoldername": "landing",
+							"pfilename": "@activity('Filter_landing').output.value[0].name"
+						}
+					},
+					"fieldList": [
+						"exists",
+						{
+							"value": "Size",
+							"type": "Expression"
+						}
+					],
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"recursive": true,
+						"enablePartitionDiscovery": false
+					},
+					"formatSettings": {
+						"type": "DelimitedTextReadSettings"
+					}
+				}
+			},
+			{
+				"name": "IF_Validate_File",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Get Metadata-filecheck",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(\n    activity('Get Metadata-filecheck').output.size,\n    0\n)",
 						"type": "Expression"
 					},
-					"isSequential": true,
-					"activities": [
+					"ifFalseActivities": [
 						{
-							"name": "IF_Validate_File",
-							"type": "IfCondition",
+							"name": "Fileerror",
+							"type": "Fail",
 							"dependsOn": [],
 							"userProperties": [],
 							"typeProperties": {
-								"expression": {
-									"value": "true",
+								"message": {
+									"value": "@concat('Missing or empty source file: ',activity('Filter_landing').output.name)",
 									"type": "Expression"
 								},
 								"ifFalseActivities": [
@@ -229,6 +272,163 @@
 							}
 						}
 					]
+				}
+			},
+			{
+				"name": "scd_dataflow",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [
+					{
+						"activity": "IF_Validate_File",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "scd_dataflow",
+						"type": "DataFlowReference",
+						"parameters": {
+							"parameter1": "patient_id"
+						}
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Fine"
+				}
+			},
+			{
+				"name": "scd_dataflow_Visit",
+				"type": "ExecuteDataFlow",
+				"dependsOn": [
+					{
+						"activity": "scd_dataflow",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataflow": {
+						"referenceName": "scd_dataflow_Visit",
+						"type": "DataFlowReference",
+						"parameters": {
+							"parameter1": "visit_id"
+						}
+					},
+					"compute": {
+						"coreCount": 8,
+						"computeType": "General"
+					},
+					"traceLevel": "Fine"
+				}
+			},
+			{
+				"name": "Stored procedure_auditlog",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "scd_dataflow_Visit",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[usp_Save_DataFlow_Audit]",
+					"storedProcedureParameters": {
+						"DiagnosisRows": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.InsertTdt.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"DiagnosisRowsupdated": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.UpdateSNKDiag.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"HospitalRows": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.sinkTgtHospital.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"HospitalRowsupdated": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.UpdateTgtHospital.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"PatientRows": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.InsertTgtPatient.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"PatientRowsupdated": {
+							"value": {
+								"value": "@activity('scd_dataflow').output.runStatus.metrics.TrgtUpdate.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"PipelineRunId": {
+							"value": "@pipeline().RunId",
+							"type": "String"
+						},
+						"VisitRows": {
+							"value": {
+								"value": "@activity('scd_dataflow_Visit').output.runStatus.metrics.InsertTgtVisit.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						},
+						"VisitRowsupdated": {
+							"value": {
+								"value": "@activity('scd_dataflow_Visit').output.runStatus.metrics.TrgtUpdate.rowsWritten",
+								"type": "Expression"
+							},
+							"type": "Int64"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
 				}
 			}
 		],

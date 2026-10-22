@@ -5,20 +5,11 @@
 			"referenceName": "AzureDataLakeStorage_Ls",
 			"type": "LinkedServiceReference"
 		},
-		"parameters": {
-			"pFileName": {
-				"type": "string"
-			}
-		},
 		"annotations": [],
 		"type": "DelimitedText",
 		"typeProperties": {
 			"location": {
 				"type": "AzureBlobFSLocation",
-				"fileName": {
-					"value": "$pFileName",
-					"type": "Expression"
-				},
 				"folderPath": "landing",
 				"fileSystem": "healthcare-sourcefiles"
 			},

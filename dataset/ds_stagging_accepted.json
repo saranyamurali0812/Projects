@@ -1,0 +1,23 @@
+{
+	"name": "ds_stagging_accepted",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureDataLakeStorage_Ls",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": {
+					"value": "staging/accepted/patient",
+					"type": "Expression"
+				},
+				"fileSystem": "healthcare-stagging"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": []
+	}
+}

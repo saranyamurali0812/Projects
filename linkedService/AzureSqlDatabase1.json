@@ -1,0 +1,27 @@
+{
+	"name": "AzureSqlDatabase1",
+	"properties": {
+		"annotations": [],
+		"type": "AzureSqlDatabase",
+		"typeProperties": {
+			"server": "sql-healthcare-p1.database.windows.net",
+			"database": "sqldb-healthcare",
+			"encrypt": "optional",
+			"trustServerCertificate": true,
+			"authenticationType": "SQL",
+			"userName": "sqladmin2",
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "AzureKeyVault1",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": "Sqllogin"
+			}
+		},
+		"connectVia": {
+			"referenceName": "IR-Healthcare-Public",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}
