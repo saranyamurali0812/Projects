@@ -72,7 +72,7 @@
 				"     fileSystem: 'healthcare-stagging',",
 				"     folderPath: 'staging/accepted/hospital',",
 				"     truncate: true,",
-				"     partitionFileNames:['Hospita_stagging'],",
+				"     partitionFileNames:['Hospital_stagging'],",
 				"     umask: 0022,",
 				"     preCommands: [],",
 				"     postCommands: [],",
