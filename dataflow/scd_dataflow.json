@@ -354,7 +354,7 @@
 				"          hospital_id = src_hospital_id,",
 				"          hospital_name = src_hospital_name,",
 				"          city = src_city,",
-				"          bed = src_bed,",
+				"          bed_count = src_bed,",
 				"          Hashkey = src_Hashkey,",
 				"          created_at = src_created_at,",
 				"          updated_at = src_updated_at",
