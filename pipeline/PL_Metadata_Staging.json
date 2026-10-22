@@ -66,8 +66,8 @@
 				}
 			},
 			{
-				"name": "FE_Process_Source_Files",
-				"type": "ForEach",
+				"name": "Get Metadata-filecheck",
+				"type": "GetMetadata",
 				"dependsOn": [
 					{
 						"activity": "Filter_landing",
@@ -76,75 +76,76 @@
 						]
 					}
 				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
 				"userProperties": [],
 				"typeProperties": {
-					"items": {
-						"value": "@activity('Filter_landing').output.value ",
+					"dataset": {
+						"referenceName": "DS_ADLS_Landing",
+						"type": "DatasetReference",
+						"parameters": {
+							"pFoldername": "landing",
+							"pfilename": "@activity('Filter_landing').output.value[0].name"
+						}
+					},
+					"fieldList": [
+						"exists",
+						{
+							"value": "Size",
+							"type": "Expression"
+						}
+					],
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"recursive": true,
+						"enablePartitionDiscovery": false
+					},
+					"formatSettings": {
+						"type": "DelimitedTextReadSettings"
+					}
+				}
+			},
+			{
+				"name": "IF_Validate_File",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Get Metadata-filecheck",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@greater(\n    activity('Get Metadata-filecheck').output.size,\n    0\n)",
 						"type": "Expression"
 					},
-					"isSequential": true,
-					"activities": [
+					"ifFalseActivities": [
 						{
-							"name": "IF_Validate_File",
-							"type": "IfCondition",
-							"dependsOn": [
-								{
-									"activity": "Get Metadata-filecheck",
-									"dependencyConditions": [
-										"Succeeded"
-									]
-								}
-							],
+							"name": "Fileerror",
+							"type": "Fail",
+							"dependsOn": [],
 							"userProperties": [],
 							"typeProperties": {
-								"expression": {
-									"value": "@greater(\n    activity('Get Metadata-filecheck').output.size,\n    0\n)",
+								"message": {
+									"value": "@concat('Missing or empty source file: ',activity('Filter_landing').output.name)",
 									"type": "Expression"
 								},
-								"ifFalseActivities": [
-									{
-										"name": "Fileerror",
-										"type": "Fail",
-										"dependsOn": [],
-										"userProperties": [],
-										"typeProperties": {
-											"message": {
-												"value": "@concat('Missing or empty source file: ',item().name)",
-												"type": "Expression"
-											},
-											"errorCode": "ER_001"
-										}
-									}
-								],
-								"ifTrueActivities": [
-									{
-										"name": "Dataflow_cleaning_execpipeline",
-										"type": "ExecutePipeline",
-										"dependsOn": [],
-										"policy": {
-											"secureInput": false
-										},
-										"userProperties": [],
-										"typeProperties": {
-											"pipeline": {
-												"referenceName": "Swithch_dataflowcleaning",
-												"type": "PipelineReference"
-											},
-											"waitOnCompletion": true,
-											"parameters": {
-												"pFilename": {
-													"value": "@item().name",
-													"type": "Expression"
-												}
-											}
-										}
-									}
-								]
+								"errorCode": "ER_001"
 							}
-						},
+						}
+					],
+					"ifTrueActivities": [
 						{
-							"name": "Get Metadata-filecheck",
-							"type": "GetMetadata",
+							"name": "dataflow_patient",
+							"type": "ExecuteDataFlow",
 							"dependsOn": [],
 							"policy": {
 								"timeout": "0.12:00:00",
@@ -155,32 +156,108 @@
 							},
 							"userProperties": [],
 							"typeProperties": {
-								"dataset": {
-									"referenceName": "DS_ADLS_Landing",
-									"type": "DatasetReference",
-									"parameters": {
-										"pFoldername": "landing",
-										"pfilename": {
-											"value": "@item().name",
-											"type": "Expression"
-										}
-									}
+								"dataflow": {
+									"referenceName": "dataflow_patient",
+									"type": "DataFlowReference"
 								},
-								"fieldList": [
-									"exists",
-									{
-										"value": "Size",
-										"type": "Expression"
-									}
-								],
-								"storeSettings": {
-									"type": "AzureBlobFSReadSettings",
-									"recursive": true,
-									"enablePartitionDiscovery": false
+								"compute": {
+									"coreCount": 8,
+									"computeType": "General"
 								},
-								"formatSettings": {
-									"type": "DelimitedTextReadSettings"
+								"traceLevel": "Fine"
+							}
+						},
+						{
+							"name": "dataflow_hospital",
+							"type": "ExecuteDataFlow",
+							"dependsOn": [
+								{
+									"activity": "dataflow_patient",
+									"dependencyConditions": [
+										"Succeeded"
+									]
 								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataflow": {
+									"referenceName": "dataflow_hospital",
+									"type": "DataFlowReference"
+								},
+								"compute": {
+									"coreCount": 8,
+									"computeType": "General"
+								},
+								"traceLevel": "Fine"
+							}
+						},
+						{
+							"name": "dataflow_diagnosis",
+							"type": "ExecuteDataFlow",
+							"dependsOn": [
+								{
+									"activity": "dataflow_hospital",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataflow": {
+									"referenceName": "dataflow_diagnosis",
+									"type": "DataFlowReference"
+								},
+								"compute": {
+									"coreCount": 8,
+									"computeType": "General"
+								},
+								"traceLevel": "Fine"
+							}
+						},
+						{
+							"name": "dataflow_visits",
+							"type": "ExecuteDataFlow",
+							"dependsOn": [
+								{
+									"activity": "dataflow_diagnosis",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataflow": {
+									"referenceName": "dataflow_visits",
+									"type": "DataFlowReference"
+								},
+								"compute": {
+									"coreCount": 8,
+									"computeType": "General"
+								},
+								"traceLevel": "Fine"
 							}
 						}
 					]
