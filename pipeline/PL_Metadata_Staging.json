@@ -160,9 +160,9 @@
 									"referenceName": "dataflow_patient",
 									"type": "DataFlowReference"
 								},
-								"compute": {
-									"coreCount": 8,
-									"computeType": "General"
+								"integrationRuntime": {
+									"referenceName": "IR-Healthcare-Public",
+									"type": "IntegrationRuntimeReference"
 								},
 								"traceLevel": "Fine"
 							}
@@ -191,9 +191,9 @@
 									"referenceName": "dataflow_hospital",
 									"type": "DataFlowReference"
 								},
-								"compute": {
-									"coreCount": 8,
-									"computeType": "General"
+								"integrationRuntime": {
+									"referenceName": "IR-Healthcare-Public",
+									"type": "IntegrationRuntimeReference"
 								},
 								"traceLevel": "Fine"
 							}
@@ -222,9 +222,9 @@
 									"referenceName": "dataflow_diagnosis",
 									"type": "DataFlowReference"
 								},
-								"compute": {
-									"coreCount": 8,
-									"computeType": "General"
+								"integrationRuntime": {
+									"referenceName": "IR-Healthcare-Public",
+									"type": "IntegrationRuntimeReference"
 								},
 								"traceLevel": "Fine"
 							}
@@ -253,9 +253,9 @@
 									"referenceName": "dataflow_visits",
 									"type": "DataFlowReference"
 								},
-								"compute": {
-									"coreCount": 8,
-									"computeType": "General"
+								"integrationRuntime": {
+									"referenceName": "IR-Healthcare-Public",
+									"type": "IntegrationRuntimeReference"
 								},
 								"traceLevel": "Fine"
 							}
