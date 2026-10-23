@@ -95,7 +95,7 @@
 				"          hospital_id = trim(hospital_id),",
 				"          admission_date_clean = toDate(trim(toString(admission_date)), 'yyyy-MM-dd'),",
 				"          discharge_date_clean = toDate(trim(toString(discharge_date)), 'yyyy-MM-dd'),",
-				"          diagnosis_code_clean = upper(trim(diagnosis_code)) ,",
+				"          diagnosis_code_clean = upper(trim(diagnosis_code)),",
 				"          cost_clean = toDecimal(trim(toString(cost)), 18, 2)) ~> DRVVisitClean",
 				"DRVVisitClean window(over(visit_id),",
 				"     asc(patient_id, true),",
